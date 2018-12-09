@@ -1,0 +1,227 @@
+---
+title: "Rest_project"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Loading libraries
+```{r}
+setwd("~/Duke/Fall18/CS516/Project")
+library(rvest)
+library(dplyr)
+library(purrr)
+library(stringr)
+library(stringi)
+```
+
+Getting all brewies in US:
+```{r}
+page_vector<-seq(0,7400,20)
+get_page_brewies<-function(page_no){
+  url<-paste0("https://www.beeradvocate.com/place/list/?start=",page_no,"&c_id=US&brewery=Y&sort=name")
+  page<-read_html(url)
+  brewery_links<-str_match(page %>% html_nodes("#ba-content tr td a") %>% html_attr("href"),"/beer/profile/.*")
+  brewery_links<-brewery_links[!is.na(brewery_links)]
+  brewery_name<-page %>% html_nodes("#ba-content tr td a b") %>% html_text()
+  data.frame(brewery_name=brewery_name,brewery_links=brewery_links,stringsAsFactors = F)
+}
+```
+
+Function for all pages for one beer:
+```{r}
+get_page_review<-function(page_no,beer_id,company_no){
+  page<-read_html(paste0("https://www.beeradvocate.com/",beer_id,"/?view=beer&sort=&start=",page_no))
+  all_score<-page %>% html_nodes("#rating_fullview_container") %>% 
+    map_df(~{
+      .x %>% 
+        html_nodes('.muted:nth-child(5)') %>% 
+        html_text() -> score_categories
+      data.frame(score_categories = score_categories, stringsAsFactors = FALSE)
+    }, .id = 'review_no')
+  
+  all_score$review_no<-as.integer(all_score$review_no)
+  if(length(all_score$review_no)>0){
+    score_norm<-page %>% html_nodes(".BAscore_norm") %>% html_text()
+    score_norm<-score_norm[all_score$review_no]
+    user_id<-page %>% html_nodes("#rating_fullview_container") %>% html_attr("ba-user")
+    user_id<-user_id[all_score$review_no]
+    #date<-page %>% html_nodes(".username+ a")
+    
+    data.frame(user_id,score_norm,score_categories=all_score$score_categories,stringsAsFactors = F)
+  }else{
+    data.frame(user_id=NA,score_norm=NA,score_categories=NA,stringsAsFactors = F)
+  }
+}
+```
+
+Function for each beer in one brewery:
+```{r}
+get_beer_review<-function(beer_link,company_no){
+  
+  url<- paste0(base_url,beer_link)
+  page<-read_html(url)
+  beer_id<-str_match(beer_link,".*/(.*)/$")[,2]
+  last_page<-as.numeric(gsub(",","",str_match(page %>% html_nodes("div:nth-child(17) b:nth-child(1)") %>% html_text(),".*:\\s(.*)")[,2]))
+  last_page<-last_page-(last_page%%25)
+  if(length(last_page)>0){
+    pages_vector<-seq(0,last_page,25)
+    data.frame(beer_id=beer_id,do.call("rbind",lapply(pages_vector,get_page_review,beer_id=beer_link,company_no=company_no)))
+  }else{
+    data.frame(beer_id=beer_id,user_id=NA,score_norm=NA,score_categories=NA)
+  }
+}
+```
+
+Function for each brewery:
+```{r}
+get_company_review<-function(brewery_no){
+  url<- paste0(base_url,brewery_no,"?view=beers&show=arc")
+  page<-read_html(url)
+  #print(brewery_no)
+  beer_links<-page %>% html_nodes("#ba-content a") %>% html_attr("href")
+  beer_links<-beer_links[grep("/beer/profile/[0-9]{1,}/[0-9]{1,}",beer_links)]
+  no_reviews<-as.numeric(gsub(",","",page %>% html_nodes(".hr_bottom_light:nth-child(4) b") %>% html_text()))
+  beer_links<-beer_links[no_reviews!=0]
+  company_no=str_match(beer_links[1],"/beer/profile/(.*?)/(.*)/")[,2]
+  print(brewery_no)
+  if(length(beer_links)>0){data.frame(brewery_no=brewery_no,do.call("rbind",lapply(beer_links,get_beer_review,company_no=brewery_no)))
+  }else{
+    data.frame(brewery_no=brewery_no,beer_id=NA,user_id=NA,score_norm=NA,score_categories=NA)
+  }
+}
+
+```
+
+
+```{r}
+setwd("~/Duke/Fall18/CS516/Project")
+all_brewery<-read.csv("brewies.csv",stringsAsFactors = F)
+base_url<-"https://www.beeradvocate.com/"
+```
+Trying parallel processing
+
+```{r}
+library(parallel)
+# Calculate the number of cores
+no_cores <- detectCores() - 1
+# Initiate cluster
+cl <- makeCluster(no_cores)
+clusterEvalQ(cl,library(rvest))
+clusterEvalQ(cl,library(dplyr))
+clusterEvalQ(cl,library(purrr))
+clusterEvalQ(cl,library(stringr))
+clusterEvalQ(cl,library(stringi))
+clusterEvalQ(cl, sink(paste0("~/Duke/Fall18/CS516/Project/output", Sys.getpid(), ".txt")))
+clusterExport(cl, "base_url")
+clusterExport(cl, "get_beer_review")
+clusterExport(cl, "get_page_review")
+earlierLimit<-2801
+finalLimit<-2900
+for(i in 0:10){
+  print(i)
+first2500<<-do.call("rbind",parLapply(cl,all_brewery$brewery_links[(earlierLimit+i*100):(finalLimit+i*100)] ,get_company_review))
+setwd("~/Duke/Fall18/CS516/Project/Data")
+write.csv(first2500,paste0(earlierLimit+i*100-finalLimit+i*100,".csv"),row.names = F)
+ print(i)
+
+}
+```
+
+
+
+After data is scraped:
+```{r}
+setwd("~/Duke/Fall18/CS516/Project/Data/to_be_merged")
+all_files<-list.files("~/Duke/Fall18/CS516/Project/Data/to_be_merged")
+all_files<-all_files[grep(".*\\.csv",all_files)]
+data_merged<-do.call("rbind",lapply(all_files,function(x) read.csv(x)))
+
+score_categories<-data.frame(str_match(data_merged$score_categories,"look:\\s(.*?)\\s\\|\\ssmell:\\s(.*?)\\s\\|\\staste:\\s(.*?)\\s\\|\\sfeel:\\s(.*?)\\s\\|\\soverall:\\s(.*)")[,2:6],stringsAsFactors = F)
+colnames(score_categories)<-c("score_look","score_smell","score_taste","score_feel","score_overall")
+new_data_merged<-cbind(data_merged,score_categories)
+setwd("~/Duke/Fall18/CS516/Project/Data")
+write.csv(new_data_merged,"new_data_merged3.csv",row.names = F)
+```
+Merging:
+
+```{r}
+setwd("~/Duke/Fall18/CS516/Project/Data")
+new_data_merged<-read.csv("new_data_merged.csv",stringsAsFactors = F)
+new_data_merged2<-read.csv("new_data_merged2.csv",stringsAsFactors = F)
+new_data_merged3<-read.csv("new_data_merged3.csv",stringsAsFactors = F)
+new_data_merged2<-new_data_merged2[,-5]
+new_data_merged3<-new_data_merged3[,-5]
+final_data<-rbind(new_data_merged,new_data_merged2,new_data_merged3)
+#write.csv(final_data,"final_data.csv",row.names = F)
+```
+
+
+
+
+
+#=======================
+Beer names:
+```{r}
+library(parallel)
+# Calculate the number of cores
+no_cores <- detectCores() - 1
+# Initiate cluster
+cl <- makeCluster(no_cores)
+clusterEvalQ(cl,library(rvest))
+clusterEvalQ(cl,library(dplyr))
+clusterEvalQ(cl,library(purrr))
+clusterEvalQ(cl,library(stringr))
+clusterEvalQ(cl,library(stringi))
+clusterEvalQ(cl, sink(paste0("~/Duke/Fall18/CS516/Project/output", Sys.getpid(), ".txt")))
+clusterExport(cl, "base_url")
+get_beer_names<-function(brewery_no){
+url<- paste0(base_url,brewery_no)
+  page<-read_html(url)
+  print(brewery_no)
+  beer_links<-page %>% html_nodes("#ba-content a") %>% html_attr("href")
+  beer_links<-beer_links[grep("/beer/profile/[0-9]{1,}/[0-9]{1,}",beer_links)]
+  beer_names<-page %>% html_nodes("#ba-content a b") %>% html_text("href")
+   if(length(beer_links)>0){
+    data.frame(brewery_no=brewery_no,beer_id=beer_links,beer_names=beer_names)
+   }else{
+    data.frame(brewery_no=brewery_no,beer_id=NA,beer_names=NA)
+   }
+ # print("Done")
+}
+lowerLimit<-1
+upperLimit<-500
+i=0
+#for(i in 0:4){
+all_beer_names<-do.call("rbind",parLapply(cl,all_brewery$brewery_links[(lowerLimit+i*500):(upperLimit+i*500)],get_beer_names))
+setwd("~/Duke/Fall18/CS516/Project/Data/beernames")
+#write.csv(all_beer_names,paste0((lowerLimit+i*500),"-",(upperLimit+i*500),".csv"))
+#}
+```
+
+Merging beer names:
+```{r}
+setwd("~/Duke/Fall18/CS516/Project/Data/beernames")
+all_files<-list.files("~/Duke/Fall18/CS516/Project/Data/beernames")
+all_files<-all_files[grep(".*\\.csv",all_files)]
+data_merged<-do.call("rbind",lapply(all_files,function(x) read.csv(x)))
+data_merged<-data_merged[,-1]
+write.csv(data_merged,"all_beers.csv",row.names = F)
+```
+
+Matching beer names:
+```{r}
+#new_data_merged_6300<-read.csv("~/Duke/Fall18/CS516/Project/Data/new_data_merged_6300.csv",stringsAsFactors = F)
+#new_data_merged_6300$beer_id<-paste0(new_data_merged_6300$brewery_no,new_data_merged_6300$beer_id,"/")
+#setwd("~/Duke/Fall18/CS516/Project/Data/beernames/")
+all_beer_names<-read.csv("~/Duke/Fall18/CS516/Project/Data/beernames/all_beers.csv",stringsAsFactors = F)
+all_beer_names$beer_id<-str_match(all_beer_names$beer_id,".*/(.*)/")[,2]
+#Removing archived beers
+final_data<-final_data[-which(is.na(match(final_data$beer_id,all_beer_names$beer_id))),]
+final_data$beer_names<-all_beer_names$beer_names[match(final_data$beer_id,all_beer_names$beer_id)]
+final_data$brewery_name<-all_brewery$brewery_name[match(final_data$brewery_no,all_brewery$brewery_links)]
+write.csv(final_data,"final_data_rm.csv",row.names = F)
+```
+
