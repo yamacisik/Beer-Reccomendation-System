@@ -39,14 +39,7 @@ app.layout = html.Div([
     ),
     html.Div(id='output-a'),
 
-    dcc.RadioItems(
-                id='beer1_rating',
-                options=[{'label': i, 'value': i} for i in ['1', '2','3','4','5']],
-                value='3',
-                labelStyle={'display': 'inline-block'}
-            ),
-
-
+  
     dcc.Dropdown(
                 id='beer2',
                 options=[{'label': i, 'value': i} for i in available_beers],
@@ -54,14 +47,15 @@ app.layout = html.Div([
     ),
     html.Div(id='output-b'),
 
-    dcc.RadioItems(
-                id='beer2_rating',
-                options=[{'label': i, 'value': i} for i in ['1', '2','3','4','5']],
-                value='3',
-                labelStyle={'display': 'inline-block'}
-            ),
+    dcc.Dropdown(
+                id='beer3',
+                options=[{'label': i, 'value': i} for i in available_beers],
+                value='Two Hearted Ale by Bell\'s Brewery - Eccentric Café & General Store'
+    ),
+   	html.Div(id='output-c'),
 
-    html.Div(id='output-c'),
+   	
+    html.Div(id='output-d')
    
    
 ])
@@ -71,31 +65,37 @@ app.layout = html.Div([
     dash.dependencies.Output('output-a', 'children'),
     [dash.dependencies.Input('beer1', 'value')],)
 def callback_a(dropdown_value):
-    return 'Please indicate your rating for "{}"'.format(dropdown_value)
+    return 'Please pick a beer you like. "{}"'.format(dropdown_value)
 
 @app.callback(
     dash.dependencies.Output('output-b', 'children'),
     [dash.dependencies.Input('beer2', 'value')])
 def callback_b(dropdown_value):
-    return 'Please indicate your rating for "{}"'.format(dropdown_value)
-
+    return 'Please pick another beer you like. "{}"'.format(dropdown_value)
 @app.callback(
     dash.dependencies.Output('output-c', 'children'),
-    [dash.dependencies.Input('beer1', 'value'),dash.dependencies.Input('beer1_rating', 'value'),
-    dash.dependencies.Input('beer2', 'value'),dash.dependencies.Input('beer2_rating', 'value')])
-def callback_c(beer1,beer1_rating,beer2,beer2_rating):
-    user=np.zeros(P.shape[1])
-    user[beers2[beer1]]=beer1_rating
-    user[beers2[beer2]]=beer2_rating
-    your_rating=add_user(Q,P,user,lr=0.007,beta=0.001,epochs=1000)
-    preference=(-your_rating).argsort()[:10]
-    final=[]
-    for i in preference:
-        if i != beers2[beer1] and beers2[beer2]:
-            final.append(i)
-    final=np.array(final)
-    res=np.random.choice(final)
-    return 'Based on your choices you would also like "{}"'.format(beers[res])
+    [dash.dependencies.Input('beer3', 'value')])
+def callback_c(dropdown_value):
+    return 'Please pick another beer you like. "{}"'.format(dropdown_value)
+
+
+@app.callback(
+    dash.dependencies.Output('output-d', 'children'),
+    [dash.dependencies.Input('beer1', 'value'),
+    dash.dependencies.Input('beer2', 'value'),dash.dependencies.Input('beer3', 'value')])
+def callback_d(beer1,beer2,beer3):
+    user=np.zeros(P.shape[0])
+    user[beers2[beer1]]=5
+    user[beers2[beer2]]=5
+    #your_rating=add_user(Q,P,user,lr=0.007,beta=0.001,epochs=1000)
+    #preference=(-your_rating).argsort()[:10]
+    #final=[]
+    #for i in preference:
+    #   if i != beers2[beer1] and beers2[beer2]:
+    #      final.append(i)
+    #final=np.array(final)
+    #res=np.random.choice(final)
+    return 'Based on your choices you would also like "{}"'.format(beers[25])
 
 
 
