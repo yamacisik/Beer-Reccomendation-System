@@ -1,1 +1,1 @@
-This Folder Contains the required data for training the algorithm and the code for scraping new data.
+This Folder Contains the scraping code for the required data using R.
