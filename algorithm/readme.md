@@ -7,4 +7,4 @@ For both tensorflow implementations I use version 1.12 to take advantage of unsa
 
 
 ### Preprocessing
-Before starting to train, we need preprocess the data. In order to have more accurate predictions I dropped users and beers less then 50 reviews. Then the data was split test and training sets with a 1/9 ratio.
+Before starting to train, we need preprocess the data. In order to have more accurate predictions I dropped users and beers less then 50 reviews. Then the data was split test and training sets with a 1/9 ratio. The final training set has 
