@@ -61,4 +61,22 @@ def matrix_factor(X,train,test,epochs=10,k=4,lr=0.009,beta=0.001,report_epoch=2)
     
     return Q,P
      
-    
+
+
+## Function for completing the ratings of another user that is not in the original ratings matrix. 
+## Given the size of our initial Rating matrix, we can assume that adding one more user will not change it, hence
+## we can use the P matrix trained from our original data and just use a row matrix for the recently added users
+## latent factors.
+
+def add_user(Q,P,user,lr=0.005,beta=0.0001,epochs=10000):
+    user_hat=np.zeros(len(user))
+    n,m=Q.shape
+    Q_n=np.random.rand(m)
+    z_i=np.where(user>0)
+    for epoch in range(epochs):
+        for u in range(len(z_i)):
+            i=z_i[0][u]
+            Q_n=Q_n+(2*lr*(user[i]-np.dot(Q_n,P[:,i]))*P[:,i]).T-beta*Q_n
+    for i in range(len(P.T)):
+        user_hat[i]=np.dot(Q_n,P.T[i])   
+    return user_hat,np.argmax(user_hat)
