@@ -8,18 +8,32 @@ import time
 from reccomender_without_tensorflow import calc_accuracy,add_user
 
 
-
-## Function for matrix factorization using tensoflow without GPU support, 
-## Takes main matrix to be filled and the indices of training and test sets
-## @lr-learning rate , @beta-regularization parameter, @epochs-number of iterations, @k-number of hidden latent factors 
-## @report_epoch:frequency of training and test loss reports, @tolerance-threshold of the loss that stops the iteration process
-## @early_stop_rate-the number of consecetive increase of the training losses required for stopping the iteration, if 0 no early stop
-
 def matrix_factorization_tensorflow_cpu(X,train,test,k=3,lr=0.01,beta=0.00005,epochs=25000,early_stop_rate=1,report_epoch=10):
+    
+    
+    """
+    Function for matrix factorization using tensoflow without GPU support.Takes main matrix to be filled and the indices of training and test sets
+    
+    Parameters
+    ----------
+    lr: float
+        Learning rate
+    beta: float
+        Regularization parameter
+    epochs: int
+        Number of iterations
+    k: int
+        Number of latent factors 
+    Report_epoch: int
+        Frequency of training and test loss reports   
+    early_stop_rate: float
+        The number of consecetive increase of the training losses required for stopping the iteration, if 0 no early stop
+"""
+    
     m,n=X.shape
     z_i,z_j=np.where(X>0)
     
-    ## Test and Training Set, I use two different matrices X_test and X_train to take advantage of the div_no_nan function
+    # Test and Training Set, I use two different matrices X_test and X_train to take advantage of the div_no_nan function
 
     X_train=X.copy()
     X_test=X.copy()
@@ -60,7 +74,8 @@ def matrix_factorization_tensorflow_cpu(X,train,test,k=3,lr=0.01,beta=0.00005,ep
             time_ellapsed=(np.round((time.time()-start)*1000)/1000)/report_epoch
             train_loss=sess.run(loss,feed_dict={Rating:X_train})
             test_loss=len(train)*sess.run(loss,feed_dict={Rating:X_test})/len(test)
-            print("EPOCH " +str(i)+ ", Training Loss: " + str(train_loss)+ ", Test Loss: " + str(test_loss)+", Average time spent on each epoch: " + str(time_ellapsed))
+            print("EPOCH " +str(i)+ ", Training Loss: " + str(train_loss)+ ", Test Loss: " + str(test_loss)+",
+                  Average time spent on each epoch: " + str(time_ellapsed))
             
             ## Mechanism for early stopping
             if early_stop_rate>0 and len(losses)>=early_stop_rate:
